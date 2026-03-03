@@ -21,6 +21,8 @@ import { loadConfig } from "../config.ts";
 import { AgentError, ValidationError } from "../errors.ts";
 import { jsonOutput } from "../json.ts";
 import { printHint, printSuccess, printWarning } from "../logging/color.ts";
+import { createMailClient } from "../mail/client.ts";
+import { createMailStore } from "../mail/store.ts";
 import { getRuntime } from "../runtimes/registry.ts";
 import { openSessionStore } from "../sessions/compat.ts";
 import { createRunStore } from "../sessions/store.ts";
@@ -29,6 +31,7 @@ import type { AgentSession } from "../types.ts";
 import { isProcessRunning } from "../watchdog/health.ts";
 import type { SessionState } from "../worktree/tmux.ts";
 import {
+	capturePaneContent,
 	checkSessionState,
 	createSession,
 	ensureTmuxAvailable,
@@ -37,6 +40,7 @@ import {
 	sendKeys,
 	waitForTuiReady,
 } from "../worktree/tmux.ts";
+import { nudgeAgent } from "./nudge.ts";
 import { isRunningAsRoot } from "./sling.ts";
 
 /** Default coordinator agent name. */
@@ -81,6 +85,13 @@ export interface CoordinatorDeps {
 		stop: () => Promise<boolean>;
 		isRunning: () => Promise<boolean>;
 	};
+	_nudge?: (
+		projectRoot: string,
+		agentName: string,
+		message: string,
+		force: boolean,
+	) => Promise<{ delivered: boolean; reason?: string }>;
+	_capturePaneContent?: (name: string, lines?: number) => Promise<string | null>;
 }
 
 /**
@@ -739,6 +750,179 @@ async function statusCoordinator(
 }
 
 /**
+ * Send a fire-and-forget message to the running coordinator.
+ *
+ * Sends a mail message (from: operator, type: dispatch) and auto-nudges the
+ * coordinator via tmux sendKeys. Replaces the two-step `ov mail send + ov nudge` pattern.
+ */
+async function sendToCoordinator(
+	body: string,
+	opts: { subject: string; json: boolean },
+	deps: CoordinatorDeps = {},
+): Promise<void> {
+	const tmux = deps._tmux ?? {
+		createSession,
+		isSessionAlive,
+		checkSessionState,
+		killSession,
+		sendKeys,
+		waitForTuiReady,
+		ensureTmuxAvailable,
+	};
+	const nudge = deps._nudge ?? nudgeAgent;
+
+	const { subject, json } = opts;
+	const cwd = process.cwd();
+	const config = await loadConfig(cwd);
+	const projectRoot = config.project.root;
+
+	const overstoryDir = join(projectRoot, ".overstory");
+	const { store } = openSessionStore(overstoryDir);
+	try {
+		const session = store.getByName(COORDINATOR_NAME);
+
+		if (
+			!session ||
+			session.capability !== "coordinator" ||
+			session.state === "completed" ||
+			session.state === "zombie"
+		) {
+			throw new AgentError("No active coordinator session found", {
+				agentName: COORDINATOR_NAME,
+			});
+		}
+
+		const alive = await tmux.isSessionAlive(session.tmuxSession);
+		if (!alive) {
+			store.updateState(COORDINATOR_NAME, "zombie");
+			store.updateLastActivity(COORDINATOR_NAME);
+			throw new AgentError(`Coordinator tmux session "${session.tmuxSession}" is not alive`, {
+				agentName: COORDINATOR_NAME,
+			});
+		}
+
+		// Send mail
+		const mailDbPath = join(overstoryDir, "mail.db");
+		const mailStore = createMailStore(mailDbPath);
+		const mailClient = createMailClient(mailStore);
+		let id: string;
+		try {
+			id = mailClient.send({
+				from: "operator",
+				to: COORDINATOR_NAME,
+				subject,
+				body,
+				type: "dispatch",
+				priority: "normal",
+			});
+		} finally {
+			mailClient.close();
+		}
+
+		// Auto-nudge (fire-and-forget)
+		const nudgeMessage = `[DISPATCH] ${subject}: ${body.slice(0, 500)}`;
+		let nudged = false;
+		try {
+			const nudgeResult = await nudge(projectRoot, COORDINATOR_NAME, nudgeMessage, true);
+			nudged = nudgeResult.delivered;
+		} catch {
+			// Nudge is fire-and-forget — silently ignore errors
+		}
+
+		if (json) {
+			jsonOutput("coordinator send", { id, nudged });
+		} else {
+			printSuccess("Sent to coordinator", id);
+		}
+	} finally {
+		store.close();
+	}
+}
+
+/**
+ * Show recent coordinator tmux pane content without attaching.
+ *
+ * Wraps capturePaneContent() from tmux.ts. Supports --follow for continuous polling.
+ */
+async function outputCoordinator(
+	opts: { follow: boolean; lines: number; interval: number; json: boolean },
+	deps: CoordinatorDeps = {},
+): Promise<void> {
+	const tmux = deps._tmux ?? {
+		createSession,
+		isSessionAlive,
+		checkSessionState,
+		killSession,
+		sendKeys,
+		waitForTuiReady,
+		ensureTmuxAvailable,
+	};
+	const capturePane = deps._capturePaneContent ?? capturePaneContent;
+
+	const { follow, lines, interval, json } = opts;
+	const cwd = process.cwd();
+	const config = await loadConfig(cwd);
+	const projectRoot = config.project.root;
+
+	const overstoryDir = join(projectRoot, ".overstory");
+	const { store } = openSessionStore(overstoryDir);
+	try {
+		const session = store.getByName(COORDINATOR_NAME);
+
+		if (
+			!session ||
+			session.capability !== "coordinator" ||
+			session.state === "completed" ||
+			session.state === "zombie"
+		) {
+			throw new AgentError("No active coordinator session found", {
+				agentName: COORDINATOR_NAME,
+			});
+		}
+
+		const alive = await tmux.isSessionAlive(session.tmuxSession);
+		if (!alive) {
+			store.updateState(COORDINATOR_NAME, "zombie");
+			store.updateLastActivity(COORDINATOR_NAME);
+			throw new AgentError(`Coordinator tmux session "${session.tmuxSession}" is not alive`, {
+				agentName: COORDINATOR_NAME,
+			});
+		}
+
+		const tmuxSession = session.tmuxSession;
+
+		if (follow) {
+			// Set up SIGINT handler for clean exit
+			let running = true;
+			process.once("SIGINT", () => {
+				running = false;
+			});
+
+			while (running) {
+				const content = await capturePane(tmuxSession, lines);
+				if (json) {
+					jsonOutput("coordinator output", { content, lines });
+				} else {
+					process.stdout.write(content ?? "");
+				}
+				if (running) {
+					await Bun.sleep(interval);
+				}
+			}
+		} else {
+			const content = await capturePane(tmuxSession, lines);
+			if (json) {
+				jsonOutput("coordinator output", { content, lines });
+			} else {
+				process.stdout.write(content ?? "");
+			}
+		}
+	} finally {
+		store.close();
+	}
+}
+
+/**
  * Create the Commander command for `ov coordinator`.
  */
 export function createCoordinatorCommand(deps: CoordinatorDeps = {}): Command {
@@ -783,6 +967,37 @@ export function createCoordinatorCommand(deps: CoordinatorDeps = {}): Command {
 		.action(async (opts: { json?: boolean }) => {
 			await statusCoordinator({ json: opts.json ?? false }, deps);
 		});
+
+	cmd
+		.command("send")
+		.description("Send a message to the coordinator (fire-and-forget)")
+		.requiredOption("--body <text>", "Message body")
+		.option("--subject <text>", "Message subject", "operator dispatch")
+		.option("--json", "Output as JSON")
+		.action(async (opts: { body: string; subject: string; json?: boolean }) => {
+			await sendToCoordinator(opts.body, { subject: opts.subject, json: opts.json ?? false }, deps);
+		});
+
+	cmd
+		.command("output")
+		.description("Show recent coordinator output (tmux pane content)")
+		.option("--follow, -f", "Continuously poll for new output")
+		.option("--lines <n>", "Number of lines to capture", "50")
+		.option("--interval <ms>", "Poll interval in milliseconds (with --follow)", "2000")
+		.option("--json", "Output as JSON")
+		.action(
+			async (opts: { follow?: boolean; lines?: string; interval?: string; json?: boolean }) => {
+				await outputCoordinator(
+					{
+						follow: opts.follow ?? false,
+						lines: Number.parseInt(opts.lines ?? "50", 10),
+						interval: Number.parseInt(opts.interval ?? "2000", 10),
+						json: opts.json ?? false,
+					},
+					deps,
+				);
+			},
+		);
 
 	return cmd;
 }

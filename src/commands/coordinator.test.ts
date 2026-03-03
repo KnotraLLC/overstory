@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdir, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { AgentError, ValidationError } from "../errors.ts";
+import { createMailStore } from "../mail/store.ts";
 import { openSessionStore } from "../sessions/compat.ts";
 import { createRunStore } from "../sessions/store.ts";
 import { cleanupTempDir, createTempGitRepo } from "../test-helpers.ts";
@@ -1768,5 +1769,152 @@ describe("SessionStore round-trip", () => {
 		const dbPath = join(overstoryDir, "sessions.db");
 		const exists = Bun.file(dbPath).size > 0;
 		expect(exists).toBe(true);
+	});
+});
+
+// --- Helpers for send/output tests ---
+
+/** Read all messages from the mail store at mail.db for assertions. */
+function loadMailMessages() {
+	const mailDbPath = join(overstoryDir, "mail.db");
+	const mailStore = createMailStore(mailDbPath);
+	try {
+		return mailStore.getAll();
+	} finally {
+		mailStore.close();
+	}
+}
+
+describe("sendCoordinator", () => {
+	test("send succeeds with running coordinator — mail is in DB", async () => {
+		const session = makeCoordinatorSession({ state: "working" });
+		saveSessionsToDb([session]);
+
+		let nudgeCalled = false;
+		const { deps } = makeDeps({ "overstory-test-project-coordinator": true });
+		deps._nudge = async () => {
+			nudgeCalled = true;
+			return { delivered: true };
+		};
+
+		await captureStdout(() => coordinatorCommand(["send", "--body", "hello world"], deps));
+
+		const messages = loadMailMessages();
+		expect(messages).toHaveLength(1);
+		expect(messages[0]?.from).toBe("operator");
+		expect(messages[0]?.to).toBe("coordinator");
+		expect(messages[0]?.body).toBe("hello world");
+		expect(messages[0]?.type).toBe("dispatch");
+		expect(nudgeCalled).toBe(true);
+	});
+
+	test("send fails when no coordinator running", async () => {
+		const { deps } = makeDeps();
+
+		await expect(coordinatorCommand(["send", "--body", "hello"], deps)).rejects.toThrow(AgentError);
+	});
+
+	test("send fails when coordinator tmux is dead — state updated to zombie", async () => {
+		const session = makeCoordinatorSession({ state: "working" });
+		saveSessionsToDb([session]);
+
+		const { deps } = makeDeps({ "overstory-test-project-coordinator": false });
+
+		await expect(coordinatorCommand(["send", "--body", "hello"], deps)).rejects.toThrow(AgentError);
+
+		const sessions = loadSessionsFromDb();
+		expect(sessions[0]?.state).toBe("zombie");
+	});
+
+	test("send --json outputs JSON with id and nudged fields", async () => {
+		const session = makeCoordinatorSession({ state: "working" });
+		saveSessionsToDb([session]);
+
+		const { deps } = makeDeps({ "overstory-test-project-coordinator": true });
+		deps._nudge = async () => ({ delivered: true });
+
+		const output = await captureStdout(() =>
+			coordinatorCommand(["send", "--body", "hello", "--json"], deps),
+		);
+		const parsed = JSON.parse(output) as Record<string, unknown>;
+		expect(typeof parsed.id).toBe("string");
+		expect(parsed.nudged).toBe(true);
+	});
+
+	test("send with custom --subject uses subject in mail", async () => {
+		const session = makeCoordinatorSession({ state: "working" });
+		saveSessionsToDb([session]);
+
+		const { deps } = makeDeps({ "overstory-test-project-coordinator": true });
+		deps._nudge = async () => ({ delivered: false });
+
+		await captureStdout(() =>
+			coordinatorCommand(
+				["send", "--body", "build feature X", "--subject", "Deploy feature X"],
+				deps,
+			),
+		);
+
+		const messages = loadMailMessages();
+		expect(messages[0]?.subject).toBe("Deploy feature X");
+	});
+});
+
+describe("outputCoordinator", () => {
+	test("output shows pane content", async () => {
+		const session = makeCoordinatorSession({ state: "working" });
+		saveSessionsToDb([session]);
+
+		const { deps } = makeDeps({ "overstory-test-project-coordinator": true });
+		deps._capturePaneContent = async () => "Hello from coordinator pane\n";
+
+		const output = await captureStdout(() => coordinatorCommand(["output"], deps));
+		expect(output).toContain("Hello from coordinator pane");
+	});
+
+	test("output fails when no coordinator running", async () => {
+		const { deps } = makeDeps();
+
+		await expect(coordinatorCommand(["output"], deps)).rejects.toThrow(AgentError);
+	});
+
+	test("output fails when coordinator tmux is dead — state updated to zombie", async () => {
+		const session = makeCoordinatorSession({ state: "working" });
+		saveSessionsToDb([session]);
+
+		const { deps } = makeDeps({ "overstory-test-project-coordinator": false });
+
+		await expect(coordinatorCommand(["output"], deps)).rejects.toThrow(AgentError);
+
+		const sessions = loadSessionsFromDb();
+		expect(sessions[0]?.state).toBe("zombie");
+	});
+
+	test("output --json wraps content in JSON", async () => {
+		const session = makeCoordinatorSession({ state: "working" });
+		saveSessionsToDb([session]);
+
+		const { deps } = makeDeps({ "overstory-test-project-coordinator": true });
+		deps._capturePaneContent = async () => "some output";
+
+		const output = await captureStdout(() => coordinatorCommand(["output", "--json"], deps));
+		const parsed = JSON.parse(output) as Record<string, unknown>;
+		expect(parsed.content).toBe("some output");
+		expect(typeof parsed.lines).toBe("number");
+	});
+
+	test("output --lines passes lines parameter to capturePaneContent", async () => {
+		const session = makeCoordinatorSession({ state: "working" });
+		saveSessionsToDb([session]);
+
+		let capturedLines: number | undefined;
+		const { deps } = makeDeps({ "overstory-test-project-coordinator": true });
+		deps._capturePaneContent = async (_name: string, lines?: number) => {
+			capturedLines = lines;
+			return "output";
+		};
+
+		await captureStdout(() => coordinatorCommand(["output", "--lines", "100"], deps));
+		expect(capturedLines).toBe(100);
 	});
 });
