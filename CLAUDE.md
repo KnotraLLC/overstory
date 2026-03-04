@@ -102,6 +102,7 @@ overstory/                        # This repo (the overstory tool itself)
     worktree/
       manager.ts                  # Create/list/cleanup git worktrees via Bun.spawn
       tmux.ts                     # Tmux session management via Bun.spawn
+      process.ts                  # Headless subprocess management (non-tmux runtimes)
     sessions/
       store.ts                    # SQLite SessionStore + RunStore (agent lifecycle, runs)
       compat.ts                   # Migration bridge from sessions.json to sessions.db
@@ -128,6 +129,8 @@ overstory/                        # This repo (the overstory tool itself)
       copilot.ts                  # GitHub Copilot runtime adapter
       codex.ts                    # OpenAI Codex runtime adapter (headless, OS-level sandbox)
       gemini.ts                   # Gemini CLI runtime adapter (Google's gemini coding agent)
+      sapling.ts                  # Sapling runtime adapter (headless coding agent)
+      connections.ts              # Module-level RuntimeConnection registry for RPC agents
     mulch/
       client.ts                   # mulch client (programmatic API for record/search/query, CLI wrapper for rest)
     merge/

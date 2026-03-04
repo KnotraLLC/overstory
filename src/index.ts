@@ -49,7 +49,7 @@ import { ConfigError, OverstoryError, WorktreeError } from "./errors.ts";
 import { jsonError } from "./json.ts";
 import { brand, chalk, muted, setQuiet } from "./logging/color.ts";
 
-export const VERSION = "0.8.0";
+export const VERSION = "0.8.2";
 
 const rawArgs = process.argv.slice(2);
 
