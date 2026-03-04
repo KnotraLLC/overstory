@@ -19,7 +19,7 @@ Requires [Bun](https://bun.sh) v1.0+, git, and tmux. At least one supported agen
 - [GitHub Copilot](https://github.com/features/copilot) (`copilot` CLI)
 - [Codex](https://github.com/openai/codex) (`codex` CLI)
 - [Gemini CLI](https://github.com/google-gemini/gemini-cli) (`gemini` CLI)
-- [Sapling](https://github.com/nichochar/sapling) (`sp` CLI)
+- [Sapling](https://github.com/jayminwest/sapling) (`sp` CLI)
 
 ```bash
 bun install -g @os-eco/overstory-cli

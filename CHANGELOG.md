@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-03-04
+
+### Added
+
+#### Per-Capability Runtime Routing
+- **`runtime.capabilities` config field** — maps capability names (e.g. `builder`, `scout`, `coordinator`) to runtime adapter names, enabling heterogeneous fleets where different agent roles use different runtimes
+- `getRuntime()` now accepts a `capability` parameter; lookup chain: explicit `--runtime` flag > `capabilities[cap]` > `default` > `"claude"`
+- 4 tests covering capability routing, fallback, explicit override, and undefined capabilities
+
+#### Runtime-Agnostic Transcript Discovery
+- **`getTranscriptDir()` method** added to `AgentRuntime` interface — each runtime adapter now owns its transcript directory resolution instead of hardcoding Claude Code paths in the costs command
+- All 6 runtime adapters implement `getTranscriptDir()` (Claude returns project-specific path; others return `null`)
+
+#### Dynamic Instruction Path Discovery
+- `getKnownInstructionPaths()` in `agents.ts` now queries all registered runtimes via `getAllRuntimes()` instead of maintaining a hardcoded list, so new runtimes are automatically discovered
+
+### Fixed
+
+- **Dirty working tree merge guard** — `ov merge` now detects uncommitted changes to tracked files before attempting a merge and throws a clear error, preventing cascading failures through all 4 tiers with misleading empty conflict lists
+- 5 tests covering the dirty-tree detection in `resolver.test.ts`
+
+### Changed
+
+- **Decoupled Claude Code specifics** from costs, transcript, and agent discovery modules — `estimateCost` re-export removed from `transcript.ts` (import directly from `pricing.ts`), transcript dir resolution moved from costs command into runtime adapters, instruction path list derived from runtime registry
+
+### Testing
+
+- 3137 tests across 96 files (7420 `expect()` calls)
+
 ## [0.8.3] - 2026-03-04
 
 ### Added
@@ -1410,7 +1439,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Biome configuration for formatting and linting
 - TypeScript strict mode with `noUncheckedIndexedAccess`
 
-[Unreleased]: https://github.com/jayminwest/overstory/compare/v0.8.3...HEAD
+[Unreleased]: https://github.com/jayminwest/overstory/compare/v0.8.4...HEAD
+[0.8.4]: https://github.com/jayminwest/overstory/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/jayminwest/overstory/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/jayminwest/overstory/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/jayminwest/overstory/compare/v0.8.0...v0.8.1
