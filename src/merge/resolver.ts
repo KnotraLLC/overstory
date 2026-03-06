@@ -55,7 +55,7 @@ async function runGit(
  * Files matching these are bookkeeping artifacts that change during normal
  * orchestration and should be auto-committed rather than blocking merges.
  */
-const OS_ECO_STATE_PREFIXES = [".seeds/", ".overstory/", ".greenhouse/", ".mulch/", ".canopy/"];
+const OS_ECO_STATE_PREFIXES = [".seeds/", ".overstory/", ".greenhouse/", ".mulch/", ".canopy/", ".claude/"];
 const OS_ECO_STATE_FILES = ["CLAUDE.md"];
 
 /**
@@ -620,6 +620,7 @@ export function createMergeResolver(options: {
 	reimagineEnabled: boolean;
 	mulchClient?: MulchClient;
 	config?: OverstoryConfig;
+	onMergeSuccess?: (entry: MergeEntry) => Promise<void>;
 }): MergeResolver {
 	return {
 		async resolve(
@@ -648,137 +649,240 @@ export function createMergeResolver(options: {
 				}
 			}
 
-			// Pre-check: abort early if working tree has uncommitted changes.
+			// Pre-check: auto-commit os-eco state files, stash any remaining dirty tracked files.
 			// When dirty tracked files exist, git merge refuses to start (exit 1, no conflict markers),
 			// causing all tiers to cascade with empty conflict lists and a misleading final error.
 			const dirtyFiles = await checkDirtyWorkingTree(repoRoot);
 			if (dirtyFiles.length > 0) {
 				const stateFiles = dirtyFiles.filter(isOsEcoStateFile);
-				const otherFiles = dirtyFiles.filter((f) => !isOsEcoStateFile(f));
 
 				// Auto-commit os-eco runtime state files so they don't block merges
 				if (stateFiles.length > 0) {
 					await autoCommitStateFiles(repoRoot, stateFiles);
 				}
+			}
 
-				if (otherFiles.length > 0) {
+			// Re-check after auto-commit: any remaining dirty tracked files get stashed
+			// so clean-merge-eligible branches can proceed without manual intervention.
+			let didStash = false;
+			const remainingDirty = await checkDirtyWorkingTree(repoRoot);
+			if (remainingDirty.length > 0) {
+				const { exitCode: stashCode } = await runGit(repoRoot, [
+					"stash",
+					"push",
+					"-m",
+					"ov-merge: auto-stash dirty files",
+				]);
+				if (stashCode !== 0) {
 					throw new MergeError(
-						`Working tree has uncommitted changes to tracked files: ${otherFiles.join(", ")}. Commit or stash changes before running ov merge.`,
+						`Working tree has uncommitted changes to tracked files: ${remainingDirty.join(", ")}. Commit or stash changes before running ov merge.`,
 						{ branchName: entry.branchName },
 					);
 				}
+				didStash = true;
 			}
 
 			let lastTier: ResolutionTier = "clean-merge";
 			let conflictFiles: string[] = [];
 
-			// Tier 1: Clean merge
-			const cleanResult = await tryCleanMerge(entry, repoRoot);
-			if (cleanResult.success) {
-				return {
-					entry: { ...entry, status: "merged", resolvedTier: "clean-merge" },
-					success: true,
-					tier: "clean-merge",
-					conflictFiles: [],
-					errorMessage: null,
-				};
-			}
-			conflictFiles = cleanResult.conflictFiles;
-
-			// Query conflict history (if mulchClient available)
-			let history: ConflictHistory = {
-				skipTiers: [],
-				pastResolutions: [],
-				predictedConflictFiles: [],
-			};
-			if (options.mulchClient) {
-				history = await queryConflictHistory(options.mulchClient, entry);
-			}
-
-			// Tier 2: Auto-resolve (keep incoming)
-			if (!history.skipTiers.includes("auto-resolve")) {
-				lastTier = "auto-resolve";
-				const autoResult = await tryAutoResolve(conflictFiles, repoRoot);
-				if (autoResult.success) {
-					if (options.mulchClient) {
-						recordConflictPattern(options.mulchClient, entry, "auto-resolve", conflictFiles, true);
-					}
-					return {
-						entry: { ...entry, status: "merged", resolvedTier: "auto-resolve" },
-						success: true,
-						tier: "auto-resolve",
-						conflictFiles,
-						errorMessage: null,
-					};
+			try {
+				// Commit untracked files overlapping entry.filesModified before merging.
+				// git merge refuses to run if untracked files in the working tree would
+				// be overwritten by the incoming branch.
+				const { stdout: untrackedOut } = await runGit(repoRoot, [
+					"ls-files",
+					"--others",
+					"--exclude-standard",
+				]);
+				const untrackedFiles = untrackedOut
+					.trim()
+					.split("\n")
+					.filter((f) => f.length > 0);
+				const entryFileSet = new Set(entry.filesModified);
+				const overlappingUntracked = untrackedFiles.filter((f) => entryFileSet.has(f));
+				if (overlappingUntracked.length > 0) {
+					await runGit(repoRoot, ["add", ...overlappingUntracked]);
+					await runGit(repoRoot, [
+						"commit",
+						"-m",
+						"chore: commit untracked files before merge",
+					]);
 				}
-				conflictFiles = autoResult.remainingConflicts;
-			} // If skipped, fall through to next tier
 
-			// Tier 3: AI-resolve
-			if (options.aiResolveEnabled && !history.skipTiers.includes("ai-resolve")) {
-				lastTier = "ai-resolve";
-				const aiResult = await tryAiResolve(
-					conflictFiles,
-					repoRoot,
-					history.pastResolutions,
-					options.config,
-				);
-				if (aiResult.success) {
-					if (options.mulchClient) {
-						recordConflictPattern(options.mulchClient, entry, "ai-resolve", conflictFiles, true);
+				// Tier 1: Clean merge
+				const cleanResult = await tryCleanMerge(entry, repoRoot);
+				if (cleanResult.success) {
+					if (options.onMergeSuccess) {
+						try {
+							await options.onMergeSuccess({
+								...entry,
+								status: "merged",
+								resolvedTier: "clean-merge",
+							});
+						} catch {
+							// callback failures must not fail the merge
+						}
 					}
 					return {
-						entry: { ...entry, status: "merged", resolvedTier: "ai-resolve" },
+						entry: { ...entry, status: "merged", resolvedTier: "clean-merge" },
 						success: true,
-						tier: "ai-resolve",
-						conflictFiles,
-						errorMessage: null,
-					};
-				}
-				conflictFiles = aiResult.remainingConflicts;
-			}
-
-			// Tier 4: Re-imagine
-			if (options.reimagineEnabled && !history.skipTiers.includes("reimagine")) {
-				lastTier = "reimagine";
-				const reimagineResult = await tryReimagine(
-					entry,
-					canonicalBranch,
-					repoRoot,
-					options.config,
-				);
-				if (reimagineResult.success) {
-					if (options.mulchClient) {
-						recordConflictPattern(options.mulchClient, entry, "reimagine", conflictFiles, true);
-					}
-					return {
-						entry: { ...entry, status: "merged", resolvedTier: "reimagine" },
-						success: true,
-						tier: "reimagine",
+						tier: "clean-merge",
 						conflictFiles: [],
 						errorMessage: null,
 					};
 				}
-			}
+				conflictFiles = cleanResult.conflictFiles;
 
-			// All enabled tiers failed — abort any in-progress merge
-			try {
-				await runGit(repoRoot, ["merge", "--abort"]);
-			} catch {
-				// merge --abort may fail if there's no merge in progress (e.g., after reimagine)
-			}
+				// Query conflict history (if mulchClient available)
+				let history: ConflictHistory = {
+					skipTiers: [],
+					pastResolutions: [],
+					predictedConflictFiles: [],
+				};
+				if (options.mulchClient) {
+					history = await queryConflictHistory(options.mulchClient, entry);
+				}
 
-			if (options.mulchClient) {
-				recordConflictPattern(options.mulchClient, entry, lastTier, conflictFiles, false);
-			}
+				// Tier 2: Auto-resolve (keep incoming)
+				if (!history.skipTiers.includes("auto-resolve")) {
+					lastTier = "auto-resolve";
+					const autoResult = await tryAutoResolve(conflictFiles, repoRoot);
+					if (autoResult.success) {
+						if (options.mulchClient) {
+							recordConflictPattern(
+								options.mulchClient,
+								entry,
+								"auto-resolve",
+								conflictFiles,
+								true,
+							);
+						}
+						if (options.onMergeSuccess) {
+							try {
+								await options.onMergeSuccess({
+									...entry,
+									status: "merged",
+									resolvedTier: "auto-resolve",
+								});
+							} catch {
+								// callback failures must not fail the merge
+							}
+						}
+						return {
+							entry: { ...entry, status: "merged", resolvedTier: "auto-resolve" },
+							success: true,
+							tier: "auto-resolve",
+							conflictFiles,
+							errorMessage: null,
+						};
+					}
+					conflictFiles = autoResult.remainingConflicts;
+				} // If skipped, fall through to next tier
 
-			return {
-				entry: { ...entry, status: "failed", resolvedTier: null },
-				success: false,
-				tier: lastTier,
-				conflictFiles,
-				errorMessage: `All enabled resolution tiers failed (last attempted: ${lastTier})`,
-			};
+				// Tier 3: AI-resolve
+				if (options.aiResolveEnabled && !history.skipTiers.includes("ai-resolve")) {
+					lastTier = "ai-resolve";
+					const aiResult = await tryAiResolve(
+						conflictFiles,
+						repoRoot,
+						history.pastResolutions,
+						options.config,
+					);
+					if (aiResult.success) {
+						if (options.mulchClient) {
+							recordConflictPattern(
+								options.mulchClient,
+								entry,
+								"ai-resolve",
+								conflictFiles,
+								true,
+							);
+						}
+						if (options.onMergeSuccess) {
+							try {
+								await options.onMergeSuccess({
+									...entry,
+									status: "merged",
+									resolvedTier: "ai-resolve",
+								});
+							} catch {
+								// callback failures must not fail the merge
+							}
+						}
+						return {
+							entry: { ...entry, status: "merged", resolvedTier: "ai-resolve" },
+							success: true,
+							tier: "ai-resolve",
+							conflictFiles,
+							errorMessage: null,
+						};
+					}
+					conflictFiles = aiResult.remainingConflicts;
+				}
+
+				// Tier 4: Re-imagine
+				if (options.reimagineEnabled && !history.skipTiers.includes("reimagine")) {
+					lastTier = "reimagine";
+					const reimagineResult = await tryReimagine(
+						entry,
+						canonicalBranch,
+						repoRoot,
+						options.config,
+					);
+					if (reimagineResult.success) {
+						if (options.mulchClient) {
+							recordConflictPattern(
+								options.mulchClient,
+								entry,
+								"reimagine",
+								conflictFiles,
+								true,
+							);
+						}
+						if (options.onMergeSuccess) {
+							try {
+								await options.onMergeSuccess({
+									...entry,
+									status: "merged",
+									resolvedTier: "reimagine",
+								});
+							} catch {
+								// callback failures must not fail the merge
+							}
+						}
+						return {
+							entry: { ...entry, status: "merged", resolvedTier: "reimagine" },
+							success: true,
+							tier: "reimagine",
+							conflictFiles: [],
+							errorMessage: null,
+						};
+					}
+				}
+
+				// All enabled tiers failed — abort any in-progress merge
+				try {
+					await runGit(repoRoot, ["merge", "--abort"]);
+				} catch {
+					// merge --abort may fail if there's no merge in progress (e.g., after reimagine)
+				}
+
+				if (options.mulchClient) {
+					recordConflictPattern(options.mulchClient, entry, lastTier, conflictFiles, false);
+				}
+
+				return {
+					entry: { ...entry, status: "failed", resolvedTier: null },
+					success: false,
+					tier: lastTier,
+					conflictFiles,
+					errorMessage: `All enabled resolution tiers failed (last attempted: ${lastTier})`,
+				};
+			} finally {
+				if (didStash) {
+					await runGit(repoRoot, ["stash", "pop"]);
+				}
+			}
 		},
 	};
 }
