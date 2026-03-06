@@ -1,17 +1,7 @@
 {
-	"cleanup-cmd-builder": 1772806698662,
-	"fix-premature-close": 1772806566199,
-	"rollback-builder": 1772806425690,
-	"fix-run-autoclose": 1772806450882,
-	"watchdog-fix-builder": 1772806851467,
-	"coordinator-lifecycle-lead": 1772806997503,
-	"merge-stash-builder": 1772806720478,
-	"sling-rollback-lead": 1772806485021,
-	"merge-cleanup-lead": 1772806835893,
-	"init-commit-builder": 1772806688503,
-	"coordinator": 1772811707830,
-	"watchdog-fix-lead": 1772806961528,
-	"fix-uncommitted-state": 1772806896551,
-	"fish-shell-fix": 1772811673235,
-	"fish-tmux-builder": 1772811617635
+	"sd-close-guard-builder": 1772819105719,
+	"per-coord-builder": 1772819440894,
+	"per-coord-sessions-lead": 1772819401183,
+	"sd-close-guard-lead": 1772819307567,
+	"coordinator": 1772819440064
 }
