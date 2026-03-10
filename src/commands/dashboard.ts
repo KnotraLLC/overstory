@@ -40,7 +40,13 @@ import { openSessionStore } from "../sessions/compat.ts";
 import type { SessionStore } from "../sessions/store.ts";
 import { createTrackerClient, resolveBackend } from "../tracker/factory.ts";
 import type { TrackerIssue } from "../tracker/types.ts";
-import type { AgentSession, EventStore, MailMessage, OverstoryConfig, StoredEvent } from "../types.ts";
+import type {
+	AgentSession,
+	EventStore,
+	MailMessage,
+	OverstoryConfig,
+	StoredEvent,
+} from "../types.ts";
 import { evaluateHealth } from "../watchdog/health.ts";
 import { isProcessAlive } from "../worktree/tmux.ts";
 import { getCachedTmuxSessions, getCachedWorktrees, type StatusData } from "./status.ts";

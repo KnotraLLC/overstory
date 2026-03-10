@@ -37,6 +37,9 @@ export class CursorRuntime implements AgentRuntime {
 	/** Unique identifier for this runtime. */
 	readonly id = "cursor";
 
+	/** Stability tier for this runtime. */
+	readonly stability = "experimental" as const;
+
 	/** Relative path to the instruction file within a worktree. */
 	readonly instructionPath = ".cursor/rules/overstory.md";
 
