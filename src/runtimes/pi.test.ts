@@ -313,6 +313,30 @@ describe("PiRuntime", () => {
 			const state = runtime.detectReady(pane);
 			expect(state).toEqual({ phase: "ready" });
 		});
+
+		test("returns ready for 1.0M context window (Opus/Sonnet large context)", () => {
+			const pane = [
+				" pi v0.55.1",
+				" escape to interrupt",
+				"",
+				"────────────────────────────────",
+				"~/Projects/os-eco/overstory (main)",
+				"0.0%/1.0M (auto)         (anthropic) claude-opus-4-6 • high",
+			].join("\n");
+			const state = runtime.detectReady(pane);
+			expect(state).toEqual({ phase: "ready" });
+		});
+
+		test("returns loading when only 1.0M status bar present (no header)", () => {
+			const state = runtime.detectReady("0.0%/1.0M (auto)         (anthropic) claude-opus-4-6");
+			expect(state).toEqual({ phase: "loading" });
+		});
+
+		test("returns ready for 2.0M context window", () => {
+			const pane = " pi v1.0\n\n0.0%/2.0M done";
+			const state = runtime.detectReady(pane);
+			expect(state).toEqual({ phase: "ready" });
+		});
 	});
 
 	describe("buildEnv", () => {
