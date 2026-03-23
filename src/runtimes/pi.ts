@@ -168,10 +168,11 @@ export class PiRuntime implements AgentRuntime {
 	 */
 	detectReady(paneContent: string): ReadyState {
 		// Pi's TUI shows "pi v<version>" in the header and a status bar with
-		// a token usage indicator like "0.0%/200k" when fully rendered.
-		// Earlier detection checked for "model:" which Pi's TUI never contains.
+		// a token usage indicator like "0.0%/200k" or "0.0%/1.0M" when fully rendered.
+		// The context window size uses k-scale (e.g. 200k) for smaller models and
+		// M-scale (e.g. 1.0M) for Opus/Sonnet with 1M+ context windows.
 		const hasHeader = paneContent.includes("pi v");
-		const hasStatusBar = /\d+\.\d+%\/\d+k/.test(paneContent);
+		const hasStatusBar = /\d+\.\d+%\/[\d.]+[kKmM]/.test(paneContent);
 		if (hasHeader && hasStatusBar) {
 			return { phase: "ready" };
 		}
