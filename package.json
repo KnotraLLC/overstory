@@ -1,5 +1,5 @@
 {
-	"name": "@os-eco/overstory-cli",
+	"name": "@drova/overstory",
 	"version": "0.9.4",
 	"description": "Multi-agent orchestration for AI coding agents — spawn workers in git worktrees via tmux, coordinate through SQLite mail, merge with tiered conflict resolution. Pluggable runtime adapters for Claude Code, Pi, and more.",
 	"author": "Jaymin West",
@@ -24,7 +24,10 @@
 		"overstory": "./src/index.ts",
 		"ov": "./src/index.ts"
 	},
-	"main": "src/index.ts",
+	"main": "src/lib.ts",
+	"exports": {
+		".": "./src/lib.ts"
+	},
 	"files": [
 		"src",
 		"agents",
