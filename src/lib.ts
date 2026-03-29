@@ -39,6 +39,10 @@ export { createMailClient, parsePayload } from "./mail/client.ts";
 export type { MailClient } from "./mail/client.ts";
 export { isGroupAddress, resolveGroupAddress } from "./mail/broadcast.ts";
 
+// ─── Inspect data aggregation ───────────────────────────────────────────────
+export { gatherInspectData } from "./commands/inspect.ts";
+export type { InspectData } from "./commands/inspect.ts";
+
 // ─── Core types ──────────────────────────────────────────────────────────────
 export type {
   OverstoryConfig,
