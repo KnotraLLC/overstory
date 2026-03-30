@@ -126,8 +126,13 @@ export class ClaudeRuntime implements AgentRuntime {
 		}
 
 		// Session resumption takes priority over session ID.
+		// Pass sessionId as the value of --resume when both are present.
 		if (opts.resume === true) {
-			cmd.push("--resume");
+			if (opts.sessionId !== undefined) {
+				cmd.push("--resume", opts.sessionId);
+			} else {
+				cmd.push("--resume");
+			}
 		} else if (opts.sessionId !== undefined) {
 			cmd.push("--session-id", opts.sessionId);
 		}
