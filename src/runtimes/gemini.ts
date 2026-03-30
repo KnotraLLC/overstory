@@ -16,6 +16,7 @@ import type {
 	AgentRuntime,
 	HooksDef,
 	OverlayContent,
+	PrintCommandOpts,
 	ReadyState,
 	SpawnOpts,
 	TranscriptSummary,
@@ -81,17 +82,41 @@ export class GeminiRuntime implements AgentRuntime {
 	 * invocations) and exits. `--yolo` auto-approves tool calls; without it,
 	 * unapproved tool calls fail rather than hang.
 	 *
+	 * When opts is provided, extended flags are emitted:
+	 * - `-o stream-json` (when opts.outputFormat === "stream-json", or by default when opts present)
+	 * - `-y` (auto-approve, always for Drova builder context)
+	 * - opts.systemPrompt is prepended to prompt text as "[System: ...]\n\n<prompt>"
+	 *   (gemini has no dedicated --system-prompt flag)
+	 *
 	 * Used by merge/resolver.ts and watchdog/triage.ts for AI-assisted operations.
 	 *
 	 * @param prompt - The prompt to pass via `-p`
 	 * @param model - Optional model override
+	 * @param opts - Optional extended flags for Drova builder context
 	 * @returns Argv array for Bun.spawn
 	 */
-	buildPrintCommand(prompt: string, model?: string): string[] {
-		const cmd = ["gemini", "-p", prompt, "--yolo"];
+	buildPrintCommand(prompt: string, model?: string, opts?: PrintCommandOpts): string[] {
+		// Fold system prompt into the prompt text when opts are present.
+		const effectivePrompt =
+			opts?.systemPrompt !== undefined
+				? `[System: ${opts.systemPrompt}]\n\n${prompt}`
+				: prompt;
+
+		const cmd = ["gemini", "-p", effectivePrompt, "--yolo"];
 		if (model !== undefined) {
 			cmd.push("-m", model);
 		}
+
+		if (opts !== undefined) {
+			// Output format: default to stream-json when opts present.
+			const format = opts.outputFormat ?? "stream-json";
+			if (format === "stream-json") {
+				cmd.push("-o", "stream-json");
+			}
+			// Auto-approve flag for Drova builder context.
+			cmd.push("-y");
+		}
+
 		return cmd;
 	}
 

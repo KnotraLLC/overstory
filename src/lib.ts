@@ -12,7 +12,7 @@
 
 // ─── Runtime registry ────────────────────────────────────────────────────────
 export { getAllRuntimes, getRuntime } from "./runtimes/registry.ts";
-export type { AgentRuntime, SpawnOpts, ReadyState, AgentEvent } from "./runtimes/types.ts";
+export type { AgentRuntime, SpawnOpts, ReadyState, AgentEvent, PrintCommandOpts } from "./runtimes/types.ts";
 
 // ─── Worktree manager ────────────────────────────────────────────────────────
 export {

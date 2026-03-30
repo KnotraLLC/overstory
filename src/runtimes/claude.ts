@@ -12,6 +12,7 @@ import type {
 	AgentRuntime,
 	HooksDef,
 	OverlayContent,
+	PrintCommandOpts,
 	ReadyState,
 	SpawnOpts,
 	TranscriptSummary,
@@ -82,18 +83,60 @@ export class ClaudeRuntime implements AgentRuntime {
 	 * Returns an argv array suitable for `Bun.spawn()`. The `--print` flag
 	 * causes Claude Code to run the prompt and exit, writing output to stdout.
 	 *
+	 * When opts is provided, extended flags are emitted:
+	 * - `--output-format stream-json` (default when opts present; honour opts.outputFormat)
+	 * - `--permission-mode bypassPermissions` or `acceptEdits` (from opts.permissionMode)
+	 * - `--system-prompt <value>` (from opts.systemPrompt)
+	 * - `--session-id <value>` (from opts.sessionId, when opts.resume is falsy)
+	 * - `--resume` (when opts.resume === true)
+	 * - `--max-budget-usd <value>` (from opts.maxBudgetUsd)
+	 *
 	 * Used by merge/resolver.ts (AI-assisted conflict resolution) and
 	 * watchdog/triage.ts (AI-assisted failure classification).
 	 *
 	 * @param prompt - The prompt to pass via `-p`
 	 * @param model - Optional model override (omit to use Claude Code's default)
+	 * @param opts - Optional extended flags for Drova builder context
 	 * @returns Argv array for Bun.spawn
 	 */
-	buildPrintCommand(prompt: string, model?: string): string[] {
+	buildPrintCommand(prompt: string, model?: string, opts?: PrintCommandOpts): string[] {
 		const cmd = ["claude", "--print", "-p", prompt];
 		if (model !== undefined) {
 			cmd.push("--model", model);
 		}
+		if (opts === undefined) {
+			return cmd;
+		}
+
+		// Output format: default to stream-json when opts present.
+		const format = opts.outputFormat ?? "stream-json";
+		if (format !== "text") {
+			cmd.push("--output-format", format);
+		}
+
+		// Permission mode mapping.
+		if (opts.permissionMode !== undefined) {
+			const permMode = opts.permissionMode === "bypass" ? "bypassPermissions" : "acceptEdits";
+			cmd.push("--permission-mode", permMode);
+		}
+
+		// System prompt.
+		if (opts.systemPrompt !== undefined) {
+			cmd.push("--system-prompt", opts.systemPrompt);
+		}
+
+		// Session resumption takes priority over session ID.
+		if (opts.resume === true) {
+			cmd.push("--resume");
+		} else if (opts.sessionId !== undefined) {
+			cmd.push("--session-id", opts.sessionId);
+		}
+
+		// Budget cap.
+		if (opts.maxBudgetUsd !== undefined) {
+			cmd.push("--max-budget-usd", String(opts.maxBudgetUsd));
+		}
+
 		return cmd;
 	}
 

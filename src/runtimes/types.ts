@@ -136,6 +136,39 @@ export interface AgentEvent {
 	[key: string]: unknown;
 }
 
+// === Print Command Options ===
+
+/**
+ * Optional extended flags for headless one-shot AI calls via buildPrintCommand.
+ *
+ * All fields are optional. When opts is omitted entirely, buildPrintCommand
+ * falls back to its original behaviour (backwards compatible).
+ *
+ * Runtime adapters map these fields to their CLI equivalents:
+ * - claude: --output-format, --permission-mode, --system-prompt, --session-id, --resume, --max-budget-usd
+ * - codex:  --json, -s workspace-write, -C <cwd>
+ * - gemini: -o stream-json, -y (always), systemPrompt folded into prompt text
+ * - copilot: --output-format json, --allow-all, systemPrompt folded into prompt text
+ */
+export interface PrintCommandOpts {
+	/** Optional system prompt passed to the runtime (behaviour varies by adapter). */
+	systemPrompt?: string;
+	/** Permission mode: "bypass" → bypassPermissions/workspace-write, "ask" → acceptEdits/default. */
+	permissionMode?: "bypass" | "ask";
+	/** Output format hint for streaming/structured output. */
+	outputFormat?: "stream-json" | "json" | "text";
+	/** Session identifier for resumable sessions (claude only). */
+	sessionId?: string;
+	/** When true, resume an existing session rather than starting a new one (claude only). */
+	resume?: boolean;
+	/** Maximum spend in USD for this call (claude only). */
+	maxBudgetUsd?: number;
+	/** JSON schema for structured output (reserved for future use). */
+	jsonSchema?: Record<string, unknown>;
+	/** Working directory for the subprocess (codex only, passed via -C). */
+	cwd?: string;
+}
+
 // === Runtime Interface ===
 
 /**
@@ -155,14 +188,25 @@ export interface AgentRuntime {
 	/** Relative path to the instruction file within a worktree (e.g. "AGENTS.md"). */
 	readonly instructionPath: string;
 
+	/**
+	 * Whether this runtime can write files when used in headless (-p) mode.
+	 * Defaults to true semantically. Runtimes that are conversational-only
+	 * (e.g. copilot -p) set this to false.
+	 */
+	readonly writesFiles?: boolean;
+
 	/** Build the shell command string to spawn an interactive agent in a tmux pane. */
 	buildSpawnCommand(opts: SpawnOpts): string;
 
 	/**
 	 * Build the argv array for a headless one-shot AI call.
 	 * Used by merge/resolver.ts and watchdog/triage.ts for AI-assisted operations.
+	 *
+	 * When opts is provided, extended Drova flags are emitted (output format,
+	 * permission mode, system prompt, session resumption, budget cap, etc.).
+	 * When opts is omitted, the original minimal argv is returned unchanged.
 	 */
-	buildPrintCommand(prompt: string, model?: string): string[];
+	buildPrintCommand(prompt: string, model?: string, opts?: PrintCommandOpts): string[];
 
 	/**
 	 * Deploy per-agent instructions and guards to a worktree.

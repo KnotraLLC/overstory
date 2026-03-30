@@ -14,6 +14,7 @@ import type {
 	AgentRuntime,
 	HooksDef,
 	OverlayContent,
+	PrintCommandOpts,
 	ReadyState,
 	SpawnOpts,
 	TranscriptSummary,
@@ -127,19 +128,37 @@ export class CodexRuntime implements AgentRuntime {
 	 * with `--full-auto` and `--ephemeral` (no session persistence).
 	 * Without `--json`, stdout contains the plain text final message.
 	 *
+	 * When opts is provided, extended flags are emitted:
+	 * - `--json` (stream output format)
+	 * - `-s workspace-write` (sandbox mode allowing workspace writes)
+	 * - `-C <cwd>` (working directory, from opts.cwd)
+	 *
 	 * Used by merge/resolver.ts (AI-assisted conflict resolution) and
 	 * watchdog/triage.ts (AI-assisted failure classification).
 	 *
 	 * @param prompt - The prompt to pass as the exec argument
 	 * @param model - Optional model override
+	 * @param opts - Optional extended flags for Drova builder context
 	 * @returns Argv array for Bun.spawn
 	 */
-	buildPrintCommand(prompt: string, model?: string): string[] {
+	buildPrintCommand(prompt: string, model?: string, opts?: PrintCommandOpts): string[] {
 		const cmd = ["codex", "exec", "--full-auto", "--ephemeral"];
 		if (model !== undefined) {
 			// Strip provider prefix — Codex CLI expects bare model names.
 			cmd.push("--model", CodexRuntime.stripProviderPrefix(model));
 		}
+
+		if (opts !== undefined) {
+			// Structured output via NDJSON stream.
+			cmd.push("--json");
+			// Sandbox mode: allow writes within the workspace.
+			cmd.push("-s", "workspace-write");
+			// Working directory override.
+			if (opts.cwd !== undefined) {
+				cmd.push("-C", opts.cwd);
+			}
+		}
+
 		cmd.push(prompt);
 		return cmd;
 	}

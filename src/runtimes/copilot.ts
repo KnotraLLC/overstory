@@ -10,6 +10,7 @@ import type {
 	AgentRuntime,
 	HooksDef,
 	OverlayContent,
+	PrintCommandOpts,
 	ReadyState,
 	SpawnOpts,
 	TranscriptSummary,
@@ -85,6 +86,13 @@ export class CopilotRuntime implements AgentRuntime {
 	readonly instructionPath = ".github/copilot-instructions.md";
 
 	/**
+	 * Copilot in -p (print/headless) mode is conversational only — it cannot
+	 * write files. Drova's orchestrator uses this flag to skip copilot for
+	 * builder-role tasks that require file writes.
+	 */
+	readonly writesFiles = false;
+
+	/**
 	 * Expand a model alias to a fully-qualified Copilot model name.
 	 *
 	 * Looks up the alias in MODEL_MAP. If not found, returns the model unchanged.
@@ -134,14 +142,35 @@ export class CopilotRuntime implements AgentRuntime {
 	 * the prompt and `--allow-all-tools` grants full tool access. An optional
 	 * `--model` flag can override the default model.
 	 *
+	 * When opts is provided, extended flags are emitted:
+	 * - `--output-format json` (always, for structured output)
+	 * - `--allow-all` (replaces `--allow-all-tools` in opts context)
+	 * - opts.systemPrompt is folded into prompt text as "[System: ...]\n\n<prompt>"
+	 *   (copilot has no dedicated --system-prompt flag)
+	 *
 	 * Used by merge/resolver.ts and watchdog/triage.ts for AI-assisted operations.
 	 *
 	 * @param prompt - The prompt to pass via `-p`
 	 * @param model - Optional model override
+	 * @param opts - Optional extended flags for Drova builder context
 	 * @returns Argv array for Bun.spawn
 	 */
-	buildPrintCommand(prompt: string, model?: string): string[] {
-		const cmd = ["copilot", "-p", prompt, "--allow-all-tools"];
+	buildPrintCommand(prompt: string, model?: string, opts?: PrintCommandOpts): string[] {
+		if (opts === undefined) {
+			const cmd = ["copilot", "-p", prompt, "--allow-all-tools"];
+			if (model !== undefined) {
+				cmd.push("--model", this.expandModel(model));
+			}
+			return cmd;
+		}
+
+		// Fold system prompt into prompt text — copilot has no dedicated flag.
+		const effectivePrompt =
+			opts.systemPrompt !== undefined
+				? `[System: ${opts.systemPrompt}]\n\n${prompt}`
+				: prompt;
+
+		const cmd = ["copilot", "-p", effectivePrompt, "--allow-all", "--output-format", "json"];
 		if (model !== undefined) {
 			cmd.push("--model", this.expandModel(model));
 		}
