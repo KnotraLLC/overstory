@@ -113,8 +113,7 @@ export class GeminiRuntime implements AgentRuntime {
 			if (format === "stream-json") {
 				cmd.push("-o", "stream-json");
 			}
-			// Auto-approve flag for Drova builder context.
-			cmd.push("-y");
+			// Auto-approve is already handled by --yolo in the base command.
 		}
 
 		return cmd;
