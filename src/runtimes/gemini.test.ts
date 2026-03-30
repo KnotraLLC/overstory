@@ -131,6 +131,45 @@ describe("GeminiRuntime", () => {
 			const cmd = runtime.buildPrintCommand("");
 			expect(cmd).toEqual(["gemini", "-p", "", "--yolo"]);
 		});
+
+		// opts path tests
+		test("opts present: adds -o stream-json by default", () => {
+			const argv = runtime.buildPrintCommand("Classify", undefined, {});
+			expect(argv).toContain("-o");
+			expect(argv).toContain("stream-json");
+		});
+
+		test("opts.outputFormat stream-json: emits -o stream-json", () => {
+			const argv = runtime.buildPrintCommand("Classify", undefined, { outputFormat: "stream-json" });
+			expect(argv).toContain("-o");
+			expect(argv).toContain("stream-json");
+		});
+
+		test("opts present without outputFormat defaults to stream-json", () => {
+			const argv = runtime.buildPrintCommand("Prompt", undefined, { systemPrompt: "Be terse." });
+			expect(argv).toContain("-o");
+			expect(argv).toContain("stream-json");
+		});
+
+		test("opts.systemPrompt folds into prompt as [System: ...]\\n\\n<prompt>", () => {
+			const argv = runtime.buildPrintCommand("Do the task", undefined, {
+				systemPrompt: "You are a reviewer.",
+			});
+			// The effective prompt is the third element (argv[2])
+			expect(argv[2]).toBe("[System: You are a reviewer.]\n\nDo the task");
+		});
+
+		test("opts without systemPrompt: prompt is passed through unchanged", () => {
+			const argv = runtime.buildPrintCommand("Do the task", undefined, {});
+			expect(argv[2]).toBe("Do the task");
+		});
+
+		test("no --system-prompt flag (gemini has no such flag)", () => {
+			const argv = runtime.buildPrintCommand("Prompt", undefined, {
+				systemPrompt: "Be concise.",
+			});
+			expect(argv).not.toContain("--system-prompt");
+		});
 	});
 
 	describe("deployConfig", () => {

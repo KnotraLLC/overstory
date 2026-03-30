@@ -164,12 +164,23 @@ export class CopilotRuntime implements AgentRuntime {
 			return cmd;
 		}
 
-		// Fold system prompt into prompt text — copilot has no dedicated flag.
+		// LIMITATION: Copilot CLI has no dedicated --system-prompt flag, so the system
+		// prompt is prepended to the user prompt as "[System: ...]". This is a soft
+		// injection workaround — it does not carry the same enforcement as a true
+		// system-prompt channel, but it is the best available option for this CLI.
 		const effectivePrompt =
 			opts.systemPrompt !== undefined
 				? `[System: ${opts.systemPrompt}]\n\n${prompt}`
 				: prompt;
 
+		// TODO: Verify `--allow-all` against the actual Copilot CLI before promoting
+		// this adapter out of experimental. The no-opts baseline path uses
+		// `--allow-all-tools`; the opts path uses `--allow-all`. The project plan
+		// explicitly specifies `--allow-all` (not `--allow-all-tools`) here because
+		// `--allow-all` is believed to grant a broader permission set that includes
+		// worktree path writes — but this has not been confirmed against the live CLI.
+		// If `--allow-all` turns out to be an unrecognised flag, replace it with
+		// `--allow-all-tools` to match the baseline.
 		const cmd = ["copilot", "-p", effectivePrompt, "--allow-all", "--output-format", "json"];
 		if (model !== undefined) {
 			cmd.push("--model", this.expandModel(model));

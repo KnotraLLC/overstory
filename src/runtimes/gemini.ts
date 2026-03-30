@@ -96,7 +96,10 @@ export class GeminiRuntime implements AgentRuntime {
 	 * @returns Argv array for Bun.spawn
 	 */
 	buildPrintCommand(prompt: string, model?: string, opts?: PrintCommandOpts): string[] {
-		// Fold system prompt into the prompt text when opts are present.
+		// LIMITATION: Gemini CLI has no dedicated --system-prompt flag, so the system
+		// prompt is prepended to the user prompt as "[System: ...]". This is a soft
+		// injection workaround — it does not carry the same enforcement as a true
+		// system-prompt channel, but it is the best available option for this CLI.
 		const effectivePrompt =
 			opts?.systemPrompt !== undefined
 				? `[System: ${opts.systemPrompt}]\n\n${prompt}`

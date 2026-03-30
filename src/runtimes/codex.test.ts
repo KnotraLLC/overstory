@@ -315,6 +315,47 @@ describe("CodexRuntime", () => {
 			const argv = runtime.buildPrintCommand("Summarize");
 			expect(argv).toContain("--ephemeral");
 		});
+
+		// opts path tests
+		test("opts present: includes --json for structured output", () => {
+			const argv = runtime.buildPrintCommand("Classify", undefined, {});
+			expect(argv).toContain("--json");
+		});
+
+		test("opts present: includes -s workspace-write", () => {
+			const argv = runtime.buildPrintCommand("Classify", undefined, {});
+			expect(argv).toContain("-s");
+			expect(argv).toContain("workspace-write");
+		});
+
+		test("opts.cwd present: includes -C <cwd>", () => {
+			const argv = runtime.buildPrintCommand("Classify", undefined, { cwd: "/some/worktree" });
+			expect(argv).toContain("-C");
+			expect(argv).toContain("/some/worktree");
+		});
+
+		test("opts without cwd: omits -C flag", () => {
+			const argv = runtime.buildPrintCommand("Classify", undefined, {});
+			expect(argv).not.toContain("-C");
+		});
+
+		test("opts with model: strips provider prefix and includes --json and -s", () => {
+			const argv = runtime.buildPrintCommand("Prompt", "openai/gpt-5.4", {
+				cwd: "/worktree",
+			});
+			expect(argv).toContain("--model");
+			expect(argv).toContain("gpt-5.4");
+			expect(argv).toContain("--json");
+			expect(argv).toContain("-s");
+			expect(argv).toContain("workspace-write");
+			expect(argv).toContain("-C");
+			expect(argv).toContain("/worktree");
+		});
+
+		test("opts prompt is still the last element", () => {
+			const argv = runtime.buildPrintCommand("My prompt", undefined, { cwd: "/wt" });
+			expect(argv[argv.length - 1]).toBe("My prompt");
+		});
 	});
 
 	describe("detectReady", () => {

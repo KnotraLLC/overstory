@@ -192,6 +192,68 @@ describe("ClaudeRuntime", () => {
 			const argv = runtime.buildPrintCommand("Hello", undefined);
 			expect(argv).not.toContain("--model");
 		});
+
+		// opts path tests
+		test("opts present: defaults to --output-format stream-json", () => {
+			const argv = runtime.buildPrintCommand("Classify", undefined, {});
+			expect(argv).toContain("--output-format");
+			expect(argv).toContain("stream-json");
+		});
+
+		test("opts.outputFormat stream-json produces --output-format stream-json", () => {
+			const argv = runtime.buildPrintCommand("Prompt", undefined, { outputFormat: "stream-json" });
+			expect(argv).toContain("--output-format");
+			expect(argv).toContain("stream-json");
+		});
+
+		test("opts.outputFormat text omits --output-format flag", () => {
+			const argv = runtime.buildPrintCommand("Prompt", undefined, { outputFormat: "text" });
+			expect(argv).not.toContain("--output-format");
+		});
+
+		test("opts.permissionMode bypass → --permission-mode bypassPermissions", () => {
+			const argv = runtime.buildPrintCommand("Prompt", undefined, { permissionMode: "bypass" });
+			expect(argv).toContain("--permission-mode");
+			expect(argv).toContain("bypassPermissions");
+		});
+
+		test("opts.permissionMode ask → --permission-mode acceptEdits", () => {
+			const argv = runtime.buildPrintCommand("Prompt", undefined, { permissionMode: "ask" });
+			expect(argv).toContain("--permission-mode");
+			expect(argv).toContain("acceptEdits");
+		});
+
+		test("opts.systemPrompt → --system-prompt <value>", () => {
+			const argv = runtime.buildPrintCommand("Prompt", undefined, {
+				systemPrompt: "You are a reviewer.",
+			});
+			expect(argv).toContain("--system-prompt");
+			expect(argv).toContain("You are a reviewer.");
+		});
+
+		test("opts.sessionId without resume → --session-id <value>", () => {
+			const argv = runtime.buildPrintCommand("Prompt", undefined, {
+				sessionId: "sess-abc-123",
+			});
+			expect(argv).toContain("--session-id");
+			expect(argv).toContain("sess-abc-123");
+			expect(argv).not.toContain("--resume");
+		});
+
+		test("opts.resume true → --resume (no --session-id)", () => {
+			const argv = runtime.buildPrintCommand("Prompt", undefined, {
+				sessionId: "sess-abc-123",
+				resume: true,
+			});
+			expect(argv).toContain("--resume");
+			expect(argv).not.toContain("--session-id");
+		});
+
+		test("opts.maxBudgetUsd → --max-budget-usd <value>", () => {
+			const argv = runtime.buildPrintCommand("Prompt", undefined, { maxBudgetUsd: 0.5 });
+			expect(argv).toContain("--max-budget-usd");
+			expect(argv).toContain("0.5");
+		});
 	});
 
 	describe("detectReady", () => {

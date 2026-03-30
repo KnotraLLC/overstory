@@ -185,6 +185,53 @@ describe("CopilotRuntime", () => {
 			expect(withModel).toContain("--allow-all-tools");
 			expect(withoutModel).toContain("--allow-all-tools");
 		});
+
+		// opts path tests
+		test("opts present: includes --output-format json", () => {
+			const argv = runtime.buildPrintCommand("Classify", undefined, {});
+			expect(argv).toContain("--output-format");
+			expect(argv).toContain("json");
+		});
+
+		test("opts present: uses --allow-all (not --allow-all-tools)", () => {
+			const argv = runtime.buildPrintCommand("Classify", undefined, {});
+			expect(argv).toContain("--allow-all");
+			// The baseline no-opts path uses --allow-all-tools; opts path differs.
+			expect(argv).not.toContain("--allow-all-tools");
+		});
+
+		test("opts.systemPrompt folds into prompt as [System: ...]\\n\\n<prompt>", () => {
+			const argv = runtime.buildPrintCommand("Do the task", undefined, {
+				systemPrompt: "You are a builder.",
+			});
+			// The effective prompt is the third element (argv[2])
+			expect(argv[2]).toBe("[System: You are a builder.]\n\nDo the task");
+		});
+
+		test("opts without systemPrompt: prompt is passed through unchanged", () => {
+			const argv = runtime.buildPrintCommand("Do the task", undefined, {});
+			expect(argv[2]).toBe("Do the task");
+		});
+
+		test("no --system-prompt flag (copilot has no such flag)", () => {
+			const argv = runtime.buildPrintCommand("Prompt", undefined, {
+				systemPrompt: "Be concise.",
+			});
+			expect(argv).not.toContain("--system-prompt");
+		});
+
+		test("opts with model: expands alias and appends --model flag", () => {
+			const argv = runtime.buildPrintCommand("Prompt", "haiku", {});
+			expect(argv).toContain("--model");
+			expect(argv).toContain("claude-haiku-4-5");
+			expect(argv).toContain("--output-format");
+			expect(argv).toContain("json");
+		});
+
+		test("opts baseline (no opts) never includes --output-format json", () => {
+			const argv = runtime.buildPrintCommand("Prompt");
+			expect(argv).not.toContain("--output-format");
+		});
 	});
 
 	describe("detectReady", () => {
