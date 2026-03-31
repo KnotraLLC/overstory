@@ -39,9 +39,30 @@ export { createMailClient, parsePayload } from "./mail/client.ts";
 export type { MailClient } from "./mail/client.ts";
 export { isGroupAddress, resolveGroupAddress } from "./mail/broadcast.ts";
 
+// ─── Session store ──────────────────────────────────────────────────────────
+export { createSessionStore } from "./sessions/store.ts";
+export type { SessionStore } from "./sessions/store.ts";
+export { createRunStore } from "./sessions/store.ts";
+
+// ─── Event store ────────────────────────────────────────────────────────────
+export { createEventStore } from "./events/store.ts";
+
+// ─── Metrics store ──────────────────────────────────────────────────────────
+export { createMetricsStore } from "./metrics/store.ts";
+export type { MetricsStore } from "./metrics/store.ts";
+
+// ─── Process management ─────────────────────────────────────────────────────
+export { spawnHeadlessAgent } from "./worktree/process.ts";
+export type { HeadlessProcess } from "./worktree/process.ts";
+export { killProcessTree, killSession } from "./worktree/tmux.ts";
+
 // ─── Inspect data aggregation ───────────────────────────────────────────────
 export { gatherInspectData } from "./commands/inspect.ts";
 export type { InspectData } from "./commands/inspect.ts";
+
+// ─── Mulch client ─────────────────────────────────────────────────────────────
+export { createMulchClient } from "./mulch/client.ts";
+export type { MulchClient } from "./mulch/client.ts";
 
 // ─── Core types ──────────────────────────────────────────────────────────────
 export type {
@@ -54,4 +75,10 @@ export type {
   MailMessage,
   ModelAlias,
   ModelRef,
+  Run,
+  RunStore,
+  EventStore,
+  StoredEvent,
+  SessionMetrics,
+  TokenSnapshot,
 } from "./types.ts";
