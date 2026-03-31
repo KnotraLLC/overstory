@@ -84,7 +84,7 @@ async function handleList(root: string, json: boolean): Promise<void> {
 		store.close();
 	}
 
-	const overstoryWts = worktrees.filter((wt) => wt.branch.startsWith("overstory/"));
+	const overstoryWts = worktrees.filter((wt) => wt.branch.startsWith("overstory/") || wt.branch.startsWith("drova/"));
 
 	if (json) {
 		const entries = overstoryWts.map((wt) => {
@@ -142,7 +142,7 @@ async function handleClean(
 		return;
 	}
 
-	const overstoryWts = worktrees.filter((wt) => wt.branch.startsWith("overstory/"));
+	const overstoryWts = worktrees.filter((wt) => wt.branch.startsWith("overstory/") || wt.branch.startsWith("drova/"));
 	const cleaned: string[] = [];
 	const failed: string[] = [];
 	const skipped: string[] = [];
