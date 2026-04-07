@@ -1038,6 +1038,18 @@ describe("sling provider env injection building blocks", () => {
 		expect(combined.OVERSTORY_TASK_ID).toBe("overstory-1234");
 	});
 
+	test("env dict includes OVERSTORY_PROJECT_ROOT", () => {
+		const env = { MODEL_KEY: "value" };
+		const combined = {
+			...env,
+			OVERSTORY_AGENT_NAME: "test-builder",
+			OVERSTORY_WORKTREE_PATH: "/path/to/wt",
+			OVERSTORY_TASK_ID: "task-1",
+			OVERSTORY_PROJECT_ROOT: "/path/to/project",
+		};
+		expect(combined.OVERSTORY_PROJECT_ROOT).toBe("/path/to/project");
+	});
+
 	test("resolveModel returns no env for native anthropic provider", () => {
 		const config = makeConfig({ builder: "sonnet" }, { anthropic: { type: "native" } });
 		const manifest = makeManifest();

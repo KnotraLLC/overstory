@@ -905,7 +905,26 @@ export async function resolveProjectRoot(startDir: string): Promise<string> {
 
 	const { existsSync } = require("node:fs") as typeof import("node:fs");
 
-	// Check git worktree FIRST. When running from an agent worktree
+	// Check OVERSTORY_PROJECT_ROOT env var. Zero-heuristic — injected by ov sling
+	// into agent environments so submodule topology doesn't matter.
+	const envRoot = process.env.OVERSTORY_PROJECT_ROOT;
+	if (envRoot && envRoot.length > 0) {
+		return envRoot;
+	}
+
+	// Walk-up worktree-path detection. Topology-independent submodule fix:
+	// if startDir contains /.overstory/worktrees/ as a path segment, the
+	// substring before it is the project root — verify with config.yaml.
+	const WT_SEGMENT = `/${OVERSTORY_DIR}/worktrees/`;
+	const idx = startDir.indexOf(WT_SEGMENT);
+	if (idx > 0) {
+		const parentRoot = startDir.slice(0, idx);
+		if (existsSync(join(parentRoot, OVERSTORY_DIR, CONFIG_FILENAME))) {
+			return parentRoot;
+		}
+	}
+
+	// Check git worktree. When running from an agent worktree
 	// (e.g., .overstory/worktrees/{name}/), the worktree may contain
 	// tracked copies of .overstory/config.yaml. We must resolve to the
 	// main repository root so runtime state (mail.db, metrics.db, etc.)
