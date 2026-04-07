@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.4] - 2026-04-07
+
+### Fixed
+
+#### Submodule Cascade
+- **`resolveProjectRoot()` env var + walk-up detection** in `src/config.ts` — now checks `OVERSTORY_PROJECT_ROOT` env var (priority 2) and walks up from worktree paths (priority 3) before falling through to `git rev-parse`. Fixes silent multi-DB split where slung agents in nested git submodules wrote to a different `.overstory/` than the host project (overstory-5804)
+- **`OVERSTORY_PROJECT_ROOT` injected into spawned agent env** — `ov sling` now adds the canonical project root to all three agent env dicts (headless `directEnv`, tmux `buildSpawnCommand` env, tmux `createSession` env) so child agents always inherit the correct root
+- **`ov worktree clean` live-children guard** — `handleClean()` now calls `checkLiveChildren()` before removing each worktree. Live nested sessions block removal unless `--force` is passed, which cascade-SIGTERMs them. New `blockedByChildren` field added to JSON output and human summary (overstory-329a)
+
+#### Tmux Session Name Sanitization
+- **Project names containing dots** (e.g., `consulting.jayminwest.com`) caused tmux to interpret the dots as `session.window.pane` separators in `-t` target strings, breaking all pane lookups after session creation
+- **`sanitizeTmuxName()`** added to `src/worktree/tmux.ts` — replaces dots and colons with underscores, applied at all 6 tmux name construction sites (`clean.ts`, `coordinator.ts`, `monitor.ts`, `sling.ts`, `supervisor.ts`, `doctor/consistency.ts`)
+
+### Testing
+
+- 3708 tests across 113 files (8656 `expect()` calls)
+- Expanded: `src/commands/worktree.test.ts` (+322 lines — live-children guard, cascade SIGTERM, `blockedByChildren` JSON output)
+- Expanded: `src/config.test.ts` (+78 lines — `OVERSTORY_PROJECT_ROOT` env var resolution, worktree walk-up)
+- Expanded: `src/commands/sling.test.ts` (+12 lines — env var injection across all three spawn paths)
+- Expanded: `src/worktree/tmux.test.ts` (+36 lines — `sanitizeTmuxName()` for dots and colons)
+
 ## [0.9.3] - 2026-03-23
 
 ### Added
@@ -1703,7 +1724,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Biome configuration for formatting and linting
 - TypeScript strict mode with `noUncheckedIndexedAccess`
 
-[Unreleased]: https://github.com/jayminwest/overstory/compare/v0.9.3...HEAD
+[Unreleased]: https://github.com/jayminwest/overstory/compare/v0.9.4...HEAD
+[0.9.4]: https://github.com/jayminwest/overstory/compare/v0.9.3...v0.9.4
 [0.9.3]: https://github.com/jayminwest/overstory/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/jayminwest/overstory/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/jayminwest/overstory/compare/v0.9.0...v0.9.1
