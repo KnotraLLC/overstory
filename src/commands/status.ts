@@ -282,7 +282,9 @@ export function printStatus(data: StatusData): void {
 	w("\n");
 
 	// Worktrees
-	const overstoryWts = data.worktrees.filter((wt) => wt.branch.startsWith("overstory/"));
+	const overstoryWts = data.worktrees.filter((wt) =>
+		wt.branch.startsWith("overstory/") || wt.branch.startsWith("drova/"),
+	);
 	w(`Worktrees: ${overstoryWts.length}\n`);
 	for (const wt of overstoryWts) {
 		w(`   ${wt.branch}\n`);

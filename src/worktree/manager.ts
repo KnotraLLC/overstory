@@ -39,7 +39,8 @@ async function runGit(
  * Create a new git worktree for an agent.
  *
  * Creates a worktree at `{baseDir}/{agentName}` with a new branch
- * named `overstory/{agentName}/{taskId}` based on `baseBranch`.
+ * named `overstory/{agentName}/{taskId}` based on `baseBranch`, unless an
+ * explicit `branchName` override is provided.
  *
  * @returns The absolute worktree path and branch name.
  */
@@ -49,11 +50,12 @@ export async function createWorktree(options: {
 	agentName: string;
 	baseBranch: string;
 	taskId: string;
+	branchName?: string;
 }): Promise<{ path: string; branch: string }> {
 	const { repoRoot, baseDir, agentName, baseBranch, taskId } = options;
 
 	const worktreePath = join(baseDir, agentName);
-	const branchName = `overstory/${agentName}/${taskId}`;
+	const branchName = options.branchName ?? `overstory/${agentName}/${taskId}`;
 
 	await runGit(repoRoot, ["worktree", "add", "-b", branchName, worktreePath, baseBranch], {
 		worktreePath,

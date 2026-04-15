@@ -224,7 +224,9 @@ async function cleanAllWorktrees(root: string): Promise<number> {
 	let cleaned = 0;
 	try {
 		const worktrees = await listWorktrees(root);
-		const overstoryWts = worktrees.filter((wt) => wt.branch.startsWith("overstory/"));
+		const overstoryWts = worktrees.filter((wt) =>
+			wt.branch.startsWith("overstory/") || wt.branch.startsWith("drova/"),
+		);
 		for (const wt of overstoryWts) {
 			try {
 				await removeWorktree(root, wt.path, { force: true, forceBranch: true });
@@ -245,17 +247,23 @@ async function cleanAllWorktrees(root: string): Promise<number> {
 async function deleteOrphanedBranches(root: string): Promise<number> {
 	let deleted = 0;
 	try {
-		const proc = Bun.spawn(
-			["git", "for-each-ref", "refs/heads/overstory/", "--format=%(refname:short)"],
-			{ cwd: root, stdout: "pipe", stderr: "pipe" },
-		);
-		const stdout = await new Response(proc.stdout).text();
-		await proc.exited;
+		const namespaces = ["overstory", "drova"];
+		const branches = [];
+		for (const namespace of namespaces) {
+			const proc = Bun.spawn(
+				["git", "for-each-ref", `refs/heads/${namespace}/`, "--format=%(refname:short)"],
+				{ cwd: root, stdout: "pipe", stderr: "pipe" },
+			);
+			const stdout = await new Response(proc.stdout).text();
+			await proc.exited;
+			branches.push(
+				...stdout
+					.trim()
+					.split("\n")
+					.filter((b) => b.length > 0),
+			);
+		}
 
-		const branches = stdout
-			.trim()
-			.split("\n")
-			.filter((b) => b.length > 0);
 		for (const branch of branches) {
 			try {
 				const del = Bun.spawn(["git", "branch", "-D", branch], {

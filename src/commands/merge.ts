@@ -30,27 +30,27 @@ export interface MergeOptions {
 }
 
 /**
- * Extract agent name from a branch following the overstory naming convention.
- * Pattern: overstory/{agentName}/{taskId}
+ * Extract agent name from a managed agent branch.
+ * Pattern: {namespace}/{agentName}/{taskId}
  * Falls back to "unknown" if the pattern does not match.
  */
 function parseAgentName(branchName: string): string {
 	const parts = branchName.split("/");
-	if (parts[0] === "overstory" && parts[1] !== undefined) {
-		return parts[1];
+	if (parts.length >= 3) {
+		return parts[parts.length - 2] ?? "unknown";
 	}
 	return "unknown";
 }
 
 /**
- * Extract task ID from a branch following the overstory naming convention.
- * Pattern: overstory/{agentName}/{taskId}
+ * Extract task ID from a managed agent branch.
+ * Pattern: {namespace}/{agentName}/{taskId}
  * Falls back to "unknown" if the pattern does not match.
  */
 function parseTaskId(branchName: string): string {
 	const parts = branchName.split("/");
-	if (parts[0] === "overstory" && parts[2] !== undefined) {
-		return parts[2];
+	if (parts.length >= 3) {
+		return parts[parts.length - 1] ?? "unknown";
 	}
 	return "unknown";
 }

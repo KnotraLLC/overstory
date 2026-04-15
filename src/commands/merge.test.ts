@@ -209,6 +209,29 @@ merge:
 			expect(parsed.agentName).toBe("my-builder");
 			expect(parsed.taskId).toBe("bead-xyz");
 		});
+
+		test("parses agent name from drova/my-builder/bead-abc convention (use --dry-run)", async () => {
+			await setupProject(repoDir, defaultBranch);
+			const branchName = "drova/my-builder/bead-xyz";
+			await createCleanFeatureBranch(repoDir, branchName);
+
+			let output = "";
+			const originalWrite = process.stdout.write.bind(process.stdout);
+			process.stdout.write = (chunk: unknown): boolean => {
+				output += String(chunk);
+				return true;
+			};
+
+			try {
+				await mergeCommand({ branch: branchName, dryRun: true, json: true });
+			} finally {
+				process.stdout.write = originalWrite;
+			}
+
+			const parsed = JSON.parse(output);
+			expect(parsed.agentName).toBe("my-builder");
+			expect(parsed.taskId).toBe("bead-xyz");
+		});
 	});
 
 	describe("--all with real git repo", () => {

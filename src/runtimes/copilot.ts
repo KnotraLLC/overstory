@@ -86,13 +86,6 @@ export class CopilotRuntime implements AgentRuntime {
 	readonly instructionPath = ".github/copilot-instructions.md";
 
 	/**
-	 * Copilot in -p (print/headless) mode is conversational only — it cannot
-	 * write files. Drova's orchestrator uses this flag to skip copilot for
-	 * builder-role tasks that require file writes.
-	 */
-	readonly writesFiles = false;
-
-	/**
 	 * Expand a model alias to a fully-qualified Copilot model name.
 	 *
 	 * Looks up the alias in MODEL_MAP. If not found, returns the model unchanged.

@@ -188,13 +188,6 @@ export interface AgentRuntime {
 	/** Relative path to the instruction file within a worktree (e.g. "AGENTS.md"). */
 	readonly instructionPath: string;
 
-	/**
-	 * Whether this runtime can write files when used in headless (-p) mode.
-	 * Defaults to true semantically. Runtimes that are conversational-only
-	 * (e.g. copilot -p) set this to false.
-	 */
-	readonly writesFiles?: boolean;
-
 	/** Build the shell command string to spawn an interactive agent in a tmux pane. */
 	buildSpawnCommand(opts: SpawnOpts): string;
 

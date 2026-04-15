@@ -98,6 +98,21 @@ describe("createWorktree", () => {
 		expect(branchList).toContain("overstory/auth-login/bead-abc123");
 	});
 
+	test("uses an explicit branchName override when provided", async () => {
+		const result = await createWorktree({
+			repoRoot: repoDir,
+			baseDir: worktreesDir,
+			agentName: "auth-login",
+			baseBranch: defaultBranch,
+			taskId: "bead-abc123",
+			branchName: "drova/auth-login/bead-abc123",
+		});
+
+		expect(result.branch).toBe("drova/auth-login/bead-abc123");
+		const branchList = await git(repoDir, ["branch", "--list"]);
+		expect(branchList).toContain("drova/auth-login/bead-abc123");
+	});
+
 	test("throws WorktreeError when creating same worktree twice", async () => {
 		await createWorktree({
 			repoRoot: repoDir,
