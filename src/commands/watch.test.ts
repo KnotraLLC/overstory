@@ -27,7 +27,6 @@ describe("watchCommand", () => {
 	let originalStderrWrite: typeof process.stderr.write;
 	let tempDir: string;
 	let originalCwd: string;
-	let originalExitCode: string | number | null | undefined;
 
 	beforeEach(async () => {
 		// Spy on stdout
@@ -46,8 +45,6 @@ describe("watchCommand", () => {
 			return true;
 		}) as typeof process.stderr.write;
 
-		// Save original exitCode
-		originalExitCode = process.exitCode;
 		process.exitCode = 0;
 
 		// Create temp dir with .overstory/config.yaml structure
@@ -66,7 +63,12 @@ describe("watchCommand", () => {
 	afterEach(async () => {
 		process.stdout.write = originalWrite;
 		process.stderr.write = originalStderrWrite;
-		process.exitCode = originalExitCode;
+		// Unconditionally clear to 0 rather than restoring a captured "original" that
+		// could itself have been polluted by a parallel test file in the same bun
+		// process. `watchCommand` sets `process.exitCode = 1` as a side effect, so
+		// without this clear the 1 can leak all the way to bun test's shutdown and
+		// turn a fully-green run into exit 1.
+		process.exitCode = 0;
 		process.chdir(originalCwd);
 		await cleanupTempDir(tempDir);
 	});
