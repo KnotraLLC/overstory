@@ -18,6 +18,7 @@ import type {
 	OverlayContent,
 	PrintCommandOpts,
 	ReadyState,
+	RuntimeCapabilities,
 	SpawnOpts,
 	TranscriptSummary,
 } from "./types.ts";
@@ -45,6 +46,12 @@ export class GeminiRuntime implements AgentRuntime {
 
 	/** Relative path to the instruction file within a worktree. */
 	readonly instructionPath = "GEMINI.md";
+
+	readonly capabilities: RuntimeCapabilities = {
+		systemPromptChannel: "prompt-fold",
+		universalInstructionFile: "GEMINI.md",
+		supportsAppendFile: false,
+	};
 
 	/**
 	 * Build the shell command string to spawn an interactive Gemini agent.

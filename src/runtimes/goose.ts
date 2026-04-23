@@ -16,6 +16,7 @@ import type {
 	HooksDef,
 	OverlayContent,
 	ReadyState,
+	RuntimeCapabilities,
 	SpawnOpts,
 	TranscriptSummary,
 } from "./types.ts";
@@ -40,6 +41,12 @@ export class GooseRuntime implements AgentRuntime {
 	 * Goose reads .goosehints from the repo root for project-level instructions.
 	 */
 	readonly instructionPath = ".goosehints";
+
+	readonly capabilities: RuntimeCapabilities = {
+		systemPromptChannel: "prompt-fold",
+		universalInstructionFile: ".goosehints",
+		supportsAppendFile: false,
+	};
 
 	/**
 	 * Build the shell command string to spawn a Goose agent in a tmux pane.

@@ -14,6 +14,7 @@ import type {
 	OverlayContent,
 	PrintCommandOpts,
 	ReadyState,
+	RuntimeCapabilities,
 	SpawnOpts,
 	TranscriptSummary,
 } from "./types.ts";
@@ -37,6 +38,12 @@ export class ClaudeRuntime implements AgentRuntime {
 
 	/** Relative path to the instruction file within a worktree. */
 	readonly instructionPath = ".claude/CLAUDE.md";
+
+	readonly capabilities: RuntimeCapabilities = {
+		systemPromptChannel: "native-flag",
+		universalInstructionFile: ".claude/CLAUDE.md",
+		supportsAppendFile: true,
+	};
 
 	/**
 	 * Build the shell command string to spawn an interactive Claude Code agent.

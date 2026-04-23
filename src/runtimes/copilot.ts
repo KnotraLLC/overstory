@@ -12,6 +12,7 @@ import type {
 	OverlayContent,
 	PrintCommandOpts,
 	ReadyState,
+	RuntimeCapabilities,
 	SpawnOpts,
 	TranscriptSummary,
 } from "./types.ts";
@@ -94,6 +95,12 @@ export class CopilotRuntime implements AgentRuntime {
 
 	/** Relative path to the instruction file within a worktree. */
 	readonly instructionPath = ".github/copilot-instructions.md";
+
+	readonly capabilities: RuntimeCapabilities = {
+		systemPromptChannel: "overlay-only",
+		universalInstructionFile: ".github/copilot-instructions.md",
+		supportsAppendFile: false,
+	};
 
 	/**
 	 * Expand a model alias to a fully-qualified Copilot model name.

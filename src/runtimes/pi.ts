@@ -10,6 +10,7 @@ import type {
 	HooksDef,
 	OverlayContent,
 	ReadyState,
+	RuntimeCapabilities,
 	SpawnOpts,
 	TranscriptSummary,
 } from "./types.ts";
@@ -40,6 +41,12 @@ export class PiRuntime implements AgentRuntime {
 
 	/** Relative path to the instruction file within a worktree. Pi reads AGENTS.md at startup. */
 	readonly instructionPath = "AGENTS.md";
+
+	readonly capabilities: RuntimeCapabilities = {
+		systemPromptChannel: "native-flag",
+		universalInstructionFile: "AGENTS.md",
+		supportsAppendFile: true,
+	};
 
 	private readonly config: PiRuntimeConfig;
 

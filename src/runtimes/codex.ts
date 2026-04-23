@@ -16,6 +16,7 @@ import type {
 	OverlayContent,
 	PrintCommandOpts,
 	ReadyState,
+	RuntimeCapabilities,
 	SpawnOpts,
 	TranscriptSummary,
 } from "./types.ts";
@@ -43,6 +44,12 @@ export class CodexRuntime implements AgentRuntime {
 
 	/** Relative path to the instruction file within a worktree. */
 	readonly instructionPath = "AGENTS.md";
+
+	readonly capabilities: RuntimeCapabilities = {
+		systemPromptChannel: "prompt-fold",
+		universalInstructionFile: "AGENTS.md",
+		supportsAppendFile: true,
+	};
 
 	/**
 	 * Anthropic aliases used by overstory manifests that Codex CLI does not

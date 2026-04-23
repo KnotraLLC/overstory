@@ -16,6 +16,7 @@ import type {
 	HooksDef,
 	OverlayContent,
 	ReadyState,
+	RuntimeCapabilities,
 	SpawnOpts,
 	TranscriptSummary,
 } from "./types.ts";
@@ -52,6 +53,12 @@ export class OpenCodeRuntime implements AgentRuntime {
 	 * Verify with `opencode --help` or OpenCode documentation before relying on this.
 	 */
 	readonly instructionPath = "AGENTS.md";
+
+	readonly capabilities: RuntimeCapabilities = {
+		systemPromptChannel: "prompt-fold",
+		universalInstructionFile: "AGENTS.md",
+		supportsAppendFile: false,
+	};
 
 	/**
 	 * Build the shell command string to spawn an interactive OpenCode agent in a tmux pane.

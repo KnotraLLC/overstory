@@ -28,6 +28,7 @@ import type {
 	OverlayContent,
 	ReadyState,
 	RpcProcessHandle,
+	RuntimeCapabilities,
 	RuntimeConnection,
 	SpawnOpts,
 	TranscriptSummary,
@@ -351,6 +352,12 @@ export class SaplingRuntime implements AgentRuntime {
 
 	/** Relative path to the instruction file within a worktree. */
 	readonly instructionPath = "SAPLING.md";
+
+	readonly capabilities: RuntimeCapabilities = {
+		systemPromptChannel: "prompt-fold",
+		universalInstructionFile: "SAPLING.md",
+		supportsAppendFile: false,
+	};
 
 	/**
 	 * Whether this runtime is headless (no tmux, direct subprocess).

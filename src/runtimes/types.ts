@@ -3,6 +3,33 @@
 
 import type { QualityGate, ResolvedModel } from "../types.ts";
 
+// === Runtime Capability Metadata ===
+
+/**
+ * Declares how a runtime receives behavioral directives (skill bodies).
+ *
+ * - `native-flag`:    Runtime supports `--append-system-prompt` or equivalent.
+ * - `prompt-fold`:    System prompt must be prepended to the user prompt body.
+ * - `overlay-only`:   Instructions can only be delivered via an instruction file.
+ */
+export type SystemPromptChannel = "native-flag" | "prompt-fold" | "overlay-only";
+
+/**
+ * Runtime-specific capability metadata for skill/directive injection.
+ * Declared on each adapter; absent means "use overlay-only fallback".
+ */
+export interface RuntimeCapabilities {
+	/** How the runtime accepts system-prompt extensions at spawn time. */
+	systemPromptChannel: SystemPromptChannel;
+	/**
+	 * Relative path to the instruction file the runtime auto-discovers in a
+	 * worktree (e.g. "AGENTS.md", ".claude/CLAUDE.md"). null if not supported.
+	 */
+	universalInstructionFile: string | null;
+	/** Whether the runtime supports `--append-system-prompt-file` or equivalent. */
+	supportsAppendFile: boolean;
+}
+
 // === Spawn ===
 
 /** Options for spawning an interactive agent process. */
@@ -187,6 +214,13 @@ export interface AgentRuntime {
 
 	/** Relative path to the instruction file within a worktree (e.g. "AGENTS.md"). */
 	readonly instructionPath: string;
+
+	/**
+	 * Capability metadata for skill/directive injection routing.
+	 * Optional — adapters that omit this fall back to overlay-only injection
+	 * via `instructionPath` (the universal safe path).
+	 */
+	readonly capabilities?: RuntimeCapabilities;
 
 	/** Build the shell command string to spawn an interactive agent in a tmux pane. */
 	buildSpawnCommand(opts: SpawnOpts): string;

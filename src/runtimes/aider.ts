@@ -16,6 +16,7 @@ import type {
 	HooksDef,
 	OverlayContent,
 	ReadyState,
+	RuntimeCapabilities,
 	SpawnOpts,
 	TranscriptSummary,
 } from "./types.ts";
@@ -41,6 +42,12 @@ export class AiderRuntime implements AgentRuntime {
 	 * We write the overlay here so Aider picks it up natively.
 	 */
 	readonly instructionPath = "CONVENTIONS.md";
+
+	readonly capabilities: RuntimeCapabilities = {
+		systemPromptChannel: "prompt-fold",
+		universalInstructionFile: "CONVENTIONS.md",
+		supportsAppendFile: false,
+	};
 
 	/**
 	 * Build the shell command string to spawn an Aider agent in a tmux pane.

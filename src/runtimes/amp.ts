@@ -16,6 +16,7 @@ import type {
 	HooksDef,
 	OverlayContent,
 	ReadyState,
+	RuntimeCapabilities,
 	SpawnOpts,
 	TranscriptSummary,
 } from "./types.ts";
@@ -39,6 +40,12 @@ export class AmpRuntime implements AgentRuntime {
 	 * Amp reads .amp/AGENT.md from the repo for project-level instructions.
 	 */
 	readonly instructionPath = ".amp/AGENT.md";
+
+	readonly capabilities: RuntimeCapabilities = {
+		systemPromptChannel: "overlay-only",
+		universalInstructionFile: ".amp/AGENT.md",
+		supportsAppendFile: false,
+	};
 
 	/**
 	 * Build the shell command string to spawn an Amp agent in a tmux pane.

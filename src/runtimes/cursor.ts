@@ -17,6 +17,7 @@ import type {
 	HooksDef,
 	OverlayContent,
 	ReadyState,
+	RuntimeCapabilities,
 	SpawnOpts,
 	TranscriptSummary,
 } from "./types.ts";
@@ -42,6 +43,12 @@ export class CursorRuntime implements AgentRuntime {
 
 	/** Relative path to the instruction file within a worktree. */
 	readonly instructionPath = ".cursor/rules/overstory.md";
+
+	readonly capabilities: RuntimeCapabilities = {
+		systemPromptChannel: "overlay-only",
+		universalInstructionFile: ".cursor/rules/overstory.md",
+		supportsAppendFile: false,
+	};
 
 	/**
 	 * Build the shell command string to spawn an interactive Cursor agent.
