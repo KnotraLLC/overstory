@@ -103,11 +103,11 @@ export class CopilotRuntime implements AgentRuntime {
 	 * Build the shell command string to spawn an interactive Copilot agent.
 	 *
 	 * Maps SpawnOpts to `copilot` CLI flags:
-	 * - `model` → `--model <model>` (aliases expanded via MODEL_MAP)
-	 * - `permissionMode === "bypass"` → `--allow-all-tools`
+	 * - `model` → `--model <model>` (aliases expanded via MODEL_MAP; omitted when empty)
+	 * - `permissionMode === "bypass"` → `--allow-all` (covers tools + paths + URLs)
 	 * - `permissionMode === "ask"` → no permission flag added
 	 * - `appendSystemPrompt` and `appendSystemPromptFile` are IGNORED —
-	 *   the `copilot` CLI has no equivalent flag.
+	 *   the `copilot` CLI has no equivalent flag; inject via copilot-instructions.md overlay.
 	 *
 	 * The `cwd` and `env` fields of SpawnOpts are handled by the tmux session
 	 * creator, not embedded in the command string.
@@ -116,14 +116,24 @@ export class CopilotRuntime implements AgentRuntime {
 	 * @returns Shell command string suitable for tmux new-session -c
 	 */
 	buildSpawnCommand(opts: SpawnOpts): string {
-		let cmd = `copilot --model ${this.expandModel(opts.model)}`;
+		let cmd = "copilot";
+
+		// Omit --model entirely when empty — lets Copilot route to its default model,
+		// which avoids per-model rate limits when running large parallel fleets.
+		const model = this.expandModel(opts.model);
+		if (model) {
+			cmd += ` --model ${model}`;
+		}
 
 		if (opts.permissionMode === "bypass") {
-			cmd += " --allow-all-tools";
+			// --allow-all = --allow-all-tools + --allow-all-paths + --allow-all-urls.
+			// Broader than --allow-all-tools alone; required for Scout agents that read
+			// files across full worktree paths without path-verification prompts.
+			cmd += " --allow-all";
 		}
 
 		// appendSystemPrompt and appendSystemPromptFile are intentionally ignored.
-		// The copilot CLI has no --append-system-prompt equivalent.
+		// Inject behavioral directives via the copilot-instructions.md overlay instead.
 
 		return cmd;
 	}
@@ -150,9 +160,11 @@ export class CopilotRuntime implements AgentRuntime {
 	 */
 	buildPrintCommand(prompt: string, model?: string, opts?: PrintCommandOpts): string[] {
 		if (opts === undefined) {
-			const cmd = ["copilot", "-p", prompt, "--allow-all-tools"];
-			if (model !== undefined) {
-				cmd.push("--model", this.expandModel(model));
+			// --allow-all covers tools + paths + URLs; preferred over --allow-all-tools alone.
+			const cmd = ["copilot", "-p", prompt, "--allow-all"];
+			const expanded = model ? this.expandModel(model) : "";
+			if (expanded) {
+				cmd.push("--model", expanded);
 			}
 			return cmd;
 		}
@@ -161,22 +173,18 @@ export class CopilotRuntime implements AgentRuntime {
 		// prompt is prepended to the user prompt as "[System: ...]". This is a soft
 		// injection workaround — it does not carry the same enforcement as a true
 		// system-prompt channel, but it is the best available option for this CLI.
+		// Prefer injecting behavioral directives via the copilot-instructions.md overlay.
 		const effectivePrompt =
 			opts.systemPrompt !== undefined
 				? `[System: ${opts.systemPrompt}]\n\n${prompt}`
 				: prompt;
 
-		// TODO: Verify `--allow-all` against the actual Copilot CLI before promoting
-		// this adapter out of experimental. The no-opts baseline path uses
-		// `--allow-all-tools`; the opts path uses `--allow-all`. The project plan
-		// explicitly specifies `--allow-all` (not `--allow-all-tools`) here because
-		// `--allow-all` is believed to grant a broader permission set that includes
-		// worktree path writes — but this has not been confirmed against the live CLI.
-		// If `--allow-all` turns out to be an unrecognised flag, replace it with
-		// `--allow-all-tools` to match the baseline.
+		// --allow-all confirmed valid: equivalent to --allow-all-tools + --allow-all-paths
+		// + --allow-all-urls. Omit --model when empty to let Copilot route internally.
 		const cmd = ["copilot", "-p", effectivePrompt, "--allow-all", "--output-format", "json"];
-		if (model !== undefined) {
-			cmd.push("--model", this.expandModel(model));
+		const expanded = model ? this.expandModel(model) : "";
+		if (expanded) {
+			cmd.push("--model", expanded);
 		}
 		return cmd;
 	}
