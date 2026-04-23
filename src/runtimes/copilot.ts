@@ -69,11 +69,21 @@ export async function ensureCopilotTrustedFolders(
  *
  * Implements AgentRuntime for the `copilot` CLI (GitHub Copilot coding agent).
  * Key differences from Claude Code:
- * - Uses `--allow-all-tools` instead of `--permission-mode bypassPermissions`
- * - No `--append-system-prompt` flag (ignored when provided)
+ * - Uses `--allow-all` (tools + paths + URLs) instead of `--permission-mode bypassPermissions`
+ * - No `--append-system-prompt` flag — behavioral directives are injected via three paths:
+ *     1. `.github/copilot-instructions.md` overlay (primary — Copilot auto-loads this)
+ *     2. `.github/instructions/**\/*.instructions.md` (path-scoped; not currently used)
+ *     3. Inline `[System: ...]` prepend inside the `-p` prompt (headless one-shot only)
+ *   When implementing Phase 5 skill injection, append skill bodies to the overlay content
+ *   BEFORE deployConfig writes it — not via appendSystemPrompt (which is a no-op here).
+ * - Custom-agent path (future): `--agent=<name>` can point to a per-role agent definition
+ *   file; this would be a cleaner alternative to overlay injection for role-specific behavior.
+ * - `AGENTS.md` in the worktree is auto-discovered by Copilot as additional context;
+ *   use `--no-custom-instructions` on the spawn command to disable if needed.
  * - Instruction file lives at `.github/copilot-instructions.md`
- * - No hooks deployment (hooks param unused in deployConfig)
+ * - Lifecycle hooks deployed via deployCopilotHooks (onSessionStart only)
  * - Transcript parser handles both Claude-style and Pi-style formats
+ * - Omit `--model` to let Copilot route internally (avoids per-model rate limits)
  */
 export class CopilotRuntime implements AgentRuntime {
 	/** Unique identifier for this runtime. */
