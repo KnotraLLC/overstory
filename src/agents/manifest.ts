@@ -73,7 +73,9 @@ function validateAgentDefinition(name: string, raw: unknown): string[] {
 		errors.push(`Agent "${name}": "file" must be a non-empty string`);
 	}
 
-	if (typeof def.model !== "string" || def.model.length === 0) {
+	const isProfileOnly =
+		Array.isArray(def.constraints) && (def.constraints as unknown[]).includes("profile-only");
+	if (!isProfileOnly && (typeof def.model !== "string" || def.model.length === 0)) {
 		errors.push(`Agent "${name}": "model" must be a non-empty string`);
 	}
 
@@ -349,10 +351,10 @@ export function resolveModel(
 	config: OverstoryConfig,
 	manifest: AgentManifest,
 	role: string,
-	fallback: string,
+	fallback: string | undefined,
 ): ResolvedModel {
 	const configModel = config.models[role];
-	const rawModel = configModel ?? manifest.agents[role]?.model ?? fallback;
+	const rawModel = configModel ?? manifest.agents[role]?.model ?? fallback ?? "sonnet";
 	const isExplicitOverride = configModel !== undefined;
 
 	// Simple alias — expand via env var if set (e.g. ANTHROPIC_DEFAULT_SONNET_MODEL)

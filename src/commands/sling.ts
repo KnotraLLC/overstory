@@ -39,6 +39,13 @@ import { createRunStore } from "../sessions/store.ts";
 import type { TrackerIssue } from "../tracker/factory.ts";
 import { createTrackerClient, resolveBackend, trackerCliName } from "../tracker/factory.ts";
 import type { AgentSession, OverlayConfig } from "../types.ts";
+import {
+	normalizeWorkflowName,
+	repoRootFromCommandDir,
+	resolveProfileName,
+	validateWorkflowName,
+	workflowPromptPath,
+} from "../workflow.ts";
 import { createWorktree, rollbackWorktree } from "../worktree/manager.ts";
 import { spawnHeadlessAgent } from "../worktree/process.ts";
 import {
@@ -156,6 +163,7 @@ export interface SlingOptions {
 	noScoutCheck?: boolean;
 	baseBranch?: string;
 	profile?: string;
+	workflow?: string;
 }
 
 export interface AutoDispatchOptions {
@@ -472,11 +480,13 @@ export async function getCurrentBranch(repoRoot: string): Promise<string | null>
  * @param opts - Command options
  */
 export async function slingCommand(taskId: string, opts: SlingOptions): Promise<void> {
+	const overstoryRepoRoot = repoRootFromCommandDir(import.meta.dir);
 	if (!taskId) {
 		throw new ValidationError("Task ID is required: ov sling <task-id>", {
 			field: "taskId",
 		});
 	}
+	const workflow = validateWorkflowName(opts.workflow);
 
 	const capability = opts.capability ?? "builder";
 	const rawName = opts.name?.trim() ?? "";
@@ -788,8 +798,9 @@ export async function slingCommand(taskId: string, opts: SlingOptions): Promise<
 			}
 
 			// 8b. Resolve canopy profile if specified
-			const profileName =
-				opts.profile ?? process.env.OVERSTORY_PROFILE ?? config.project.defaultProfile;
+			const profileName = resolveProfileName(
+				opts.profile ?? workflow ?? process.env.OVERSTORY_PROFILE ?? config.project.defaultProfile,
+			);
 			let profileContent: string | undefined;
 			if (profileName) {
 				try {
@@ -799,8 +810,16 @@ export async function slingCommand(taskId: string, opts: SlingOptions): Promise<
 						profileContent = rendered.sections.map((s) => s.body).join("\n\n");
 					}
 				} catch {
-					// Non-fatal: canopy may not be installed or profile may not exist
-					profileContent = undefined;
+					// Fallback to emitted prompt files so first-class workflows still apply
+					// when cn is unavailable locally.
+					const normalizedWorkflow = normalizeWorkflowName(profileName);
+					if (normalizedWorkflow) {
+						const fallbackPath = workflowPromptPath(overstoryRepoRoot, normalizedWorkflow);
+						const fallbackFile = Bun.file(fallbackPath);
+						if (await fallbackFile.exists()) {
+							profileContent = await fallbackFile.text();
+						}
+					}
 				}
 			}
 
